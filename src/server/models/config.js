@@ -53,7 +53,7 @@ module.exports = function(crowi) {
       'app:confidential'  : '',
 
       'app:fileUpload'    : false,
-      'app:globalLang'    : 'en',
+      'app:globalLang'    : 'en-US',
 
       'security:restrictGuestMode'      : 'Deny',
 
@@ -641,6 +641,7 @@ module.exports = function(crowi) {
         BLOCKDIAG_URI: env.BLOCKDIAG_URI || null,
         HACKMD_URI: env.HACKMD_URI || null,
         MATHJAX: env.MATHJAX || null,
+        NO_CDN: env.NO_CDN || null,
       },
       recentCreatedLimit: Config.showRecentCreatedNumber(config),
       isAclEnabled: !Config.isPublicWikiOnly(config),
