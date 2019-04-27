@@ -1,68 +1,82 @@
-// crowi-fileupload-local
+const logger = require('@alias/logger')('growi:service:fileUploaderLocal');
+
+const fs = require('fs');
+const path = require('path');
+const mkdir = require('mkdirp');
+const streamToPromise = require('stream-to-promise');
 
 module.exports = function(crowi) {
-  'use strict';
+  const lib = {};
+  const basePath = path.posix.join(crowi.publicDir, 'uploads');
 
-  var debug = require('debug')('growi:service:fileUploaderLocal')
-    , fs = require('fs')
-    , path = require('path')
-    , mkdir = require('mkdirp')
-    , lib = {}
-    , basePath = path.posix.join(crowi.publicDir, 'uploads'); // TODO: to configurable
+  function getFilePathOnStorage(attachment) {
+    let filePath;
+    if (attachment.filePath != null) { // backward compatibility for v3.3.x or below
+      filePath = path.posix.join(basePath, attachment.filePath);
+    }
+    else {
+      const dirName = (attachment.page != null)
+        ? 'attachment'
+        : 'user';
+      filePath = path.posix.join(basePath, dirName, attachment.fileName);
+    }
 
-  lib.deleteFile = function(fileId, filePath) {
-    debug('File deletion: ' + filePath);
-    return new Promise(function(resolve, reject) {
-      fs.unlink(path.posix.join(basePath, filePath), function(err) {
-        if (err) {
-          return reject(err);
-        }
+    return filePath;
+  }
 
-        resolve();
-      });
-    });
+  lib.deleteFile = async function(attachment) {
+    const filePath = getFilePathOnStorage(attachment);
+    return lib.deleteFileByFilePath(filePath);
   };
 
-  lib.uploadFile = function(filePath, contentType, fileStream, options) {
-    debug('File uploading: ' + filePath);
-    return new Promise(function(resolve, reject) {
-      var localFilePath = path.posix.join(basePath, filePath)
-        , dirpath = path.posix.dirname(localFilePath);
-
-      mkdir(dirpath, function(err) {
-        if (err) {
-          return reject(err);
-        }
-
-        var writer = fs.createWriteStream(localFilePath);
-
-        writer.on('error', function(err) {
-          reject(err);
-        }).on('finish', function() {
-          resolve();
-        });
-
-        fileStream.pipe(writer);
-      });
-    });
+  lib.deleteFileByFilePath = async function(filePath) {
+    return fs.unlinkSync(filePath);
   };
 
-  lib.generateUrl = function(filePath) {
-    return path.posix.join('/uploads', filePath);
-  };
+  lib.uploadFile = async function(fileStream, attachment) {
+    logger.debug(`File uploading: fileName=${attachment.fileName}`);
 
-  lib.findDeliveryFile = function(fileId, filePath) {
-    return Promise.resolve(lib.generateUrl(filePath));
+    const filePath = getFilePathOnStorage(attachment);
+    const dirpath = path.posix.dirname(filePath);
+
+    // mkdir -p
+    mkdir.sync(dirpath);
+
+    const stream = fileStream.pipe(fs.createWriteStream(filePath));
+    return streamToPromise(stream);
   };
 
   /**
-   * chech storage for fileUpload reaches MONGO_GRIDFS_TOTAL_LIMIT (for gridfs)
+   * Find data substance
+   *
+   * @param {Attachment} attachment
+   * @return {stream.Readable} readable stream
    */
-  lib.checkCapacity = async(uploadFileSize) => {
-    return true;
+  lib.findDeliveryFile = async function(attachment) {
+    const filePath = getFilePathOnStorage(attachment);
+
+    // check file exists
+    try {
+      fs.statSync(filePath);
+    }
+    catch (err) {
+      throw new Error(`Any AttachmentFile that relate to the Attachment (${attachment._id.toString()}) does not exist in local fs`);
+    }
+
+    // return stream.Readable
+    return fs.createReadStream(filePath);
+  };
+
+  /**
+   * check the file size limit
+   *
+   * In detail, the followings are checked.
+   * - per-file size limit (specified by MAX_FILE_SIZE)
+   */
+  lib.checkLimit = async(uploadFileSize) => {
+    const maxFileSize = crowi.configManager.getConfig('crowi', 'app:maxFileSize');
+    return { isUploadable: uploadFileSize <= maxFileSize, errorMessage: 'File size exceeds the size limit per file' };
   };
 
   return lib;
 };
-
-

@@ -16,23 +16,20 @@ export default class SearchTypeahead extends React.Component {
 
     this.state = {
       input: this.props.keywordOnInit,
-      keyword: '',
-      searchedKeyword: '',
       pages: [],
       isLoading: false,
       searchError: null,
     };
     this.crowi = this.props.crowi;
-    this.emptyLabel = props.emptyLabel;
 
+    this.restoreInitialData = this.restoreInitialData.bind(this);
     this.search = this.search.bind(this);
     this.onInputChange = this.onInputChange.bind(this);
     this.onKeyDown = this.onKeyDown.bind(this);
-    this.onChange = this.onChange.bind(this);
     this.dispatchSubmit = this.dispatchSubmit.bind(this);
+    this.getEmptyLabel = this.getEmptyLabel.bind(this);
     this.getRestoreFormButton = this.getRestoreFormButton.bind(this);
     this.renderMenuItemChildren = this.renderMenuItemChildren.bind(this);
-    this.restoreInitialData = this.restoreInitialData.bind(this);
     this.getTypeahead = this.getTypeahead.bind(this);
   }
 
@@ -40,7 +37,7 @@ export default class SearchTypeahead extends React.Component {
    * Get instance of AsyncTypeahead
    */
   getTypeahead() {
-    return this.refs.typeahead ? this.refs.typeahead.getInstance() : null;
+    return this.typeahead ? this.typeahead.getInstance() : null;
   }
 
   componentDidMount() {
@@ -49,21 +46,28 @@ export default class SearchTypeahead extends React.Component {
   componentWillUnmount() {
   }
 
+  /**
+   * Initialize keyword
+   */
+  restoreInitialData() {
+    // see https://github.com/ericgio/react-bootstrap-typeahead/issues/266#issuecomment-414987723
+    const text = this.props.keywordOnInit;
+    const instance = this.typeahead.getInstance();
+    instance.clear();
+    instance.setState({ text });
+  }
+
   search(keyword) {
 
     if (keyword === '') {
-      this.setState({
-        keyword: '',
-        searchedKeyword: '',
-      });
       return;
     }
 
-    this.setState({isLoading: true});
+    this.setState({ isLoading: true });
 
-    this.crowi.apiGet('/search', {q: keyword})
-      .then(res => { this.onSearchSuccess(res) })
-      .catch(err => { this.onSearchError(err) });
+    this.crowi.apiGet('/search', { q: keyword })
+      .then((res) => { this.onSearchSuccess(res) })
+      .catch((err) => { this.onSearchError(err) });
   }
 
   /**
@@ -73,10 +77,11 @@ export default class SearchTypeahead extends React.Component {
   onSearchSuccess(res) {
     this.setState({
       isLoading: false,
-      keyword: '',
       pages: res.data,
     });
-    this.props.onSearchSuccess && this.props.onSearchSuccess(res);
+    if (this.props.onSearchSuccess != null) {
+      this.props.onSearchSuccess(res);
+    }
   }
 
   /**
@@ -88,13 +93,16 @@ export default class SearchTypeahead extends React.Component {
       isLoading: false,
       searchError: err,
     });
-    this.props.onSearchError && this.props.onSearchError(err);
+    if (this.props.onSearchError != null) {
+      this.props.onSearchError(err);
+    }
   }
 
   onInputChange(text) {
-    this.setState({input: text});
+    this.setState({ input: text });
+    this.props.onInputChange(text);
     if (text === '') {
-      this.setState({pages: []});
+      this.setState({ pages: [] });
     }
   }
 
@@ -104,75 +112,80 @@ export default class SearchTypeahead extends React.Component {
     }
   }
 
-  onChange(selected) {
-    const page = selected[0];  // should be single page selected
-
-    // navigate to page
-    if (page != null) {
-      window.location = page.path;
-    }
-  }
-
   dispatchSubmit() {
     if (this.props.onSubmit != null) {
-      this.props.onSubmit(this.state.keyword);
+      this.props.onSubmit(this.state.input);
     }
   }
 
-  renderMenuItemChildren(option, props, index) {
-    const page = option;
-    return (
-      <span>
-      <UserPicture user={page.lastUpdateUser} size="sm" />
-      <PagePath page={page} />
-      <PageListMeta page={page} />
-      </span>
-    );
-  }
+  getEmptyLabel() {
+    // use props.emptyLabel as is if defined
+    if (this.props.emptyLabel !== undefined) {
+      return this.props.emptyLabel;
+    }
 
-  /**
-   * Initialize keyword
-   */
-  restoreInitialData() {
-    this.refs.typeahead.getInstance().clear();
-    this.refs.typeahead.getInstance()._updateText(this.props.keywordOnInit);
+    let emptyLabelExceptError = 'No matches found on title...';
+    if (this.props.emptyLabelExceptError !== undefined) {
+      emptyLabelExceptError = this.props.emptyLabelExceptError;
+    }
+
+    return (this.state.searchError !== null)
+      ? 'Error on searching.'
+      : emptyLabelExceptError;
   }
 
   /**
    * Get restore form button to initialize button
    */
   getRestoreFormButton() {
-    let isHidden = (this.state.input === this.props.keywordOnInit);
+    const isHidden = (this.state.input === this.props.keywordOnInit);
 
-    return isHidden ? <span></span> : (
+    return isHidden ? <span /> : (
       <button type="button" className="btn btn-link search-clear" onMouseDown={this.restoreInitialData}>
         <i className="icon-close" />
       </button>
     );
   }
 
+  renderMenuItemChildren(option, props, index) {
+    const page = option;
+    return (
+      <span>
+        <UserPicture user={page.lastUpdateUser} size="sm" />
+        <PagePath page={page} />
+        <PageListMeta page={page} />
+      </span>
+    );
+  }
+
   render() {
-    const emptyLabel = (this.state.searchError !== null)
-      ? 'Error on searching.'
-      : 'No matches found on title...';
-    const restoreFormButton = this.getRestoreFormButton();
-    const defaultSelected = (this.props.keywordOnInit != '')
-      ? [{path: this.props.keywordOnInit}]
+    const defaultSelected = (this.props.keywordOnInit !== '')
+      ? [{ path: this.props.keywordOnInit }]
       : [];
+    const inputProps = { autoComplete: 'off' };
+    if (this.props.inputName != null) {
+      inputProps.name = this.props.inputName;
+    }
+
+    const restoreFormButton = this.getRestoreFormButton();
 
     return (
       <div className="search-typeahead">
         <AsyncTypeahead
           {...this.props}
-          ref="typeahead"
-          inputProps={{name: 'q', autoComplete: 'off'}}
+          ref={(c) => { this.typeahead = c }}
+          inputProps={inputProps}
           isLoading={this.state.isLoading}
           labelKey="path"
           minLength={0}
           options={this.state.pages} // Search result (Some page names)
-          emptyLabel={this.emptyLabel ? this.emptyLabel : emptyLabel}
-          align='left'
-          submitFormOnEnter={true}
+          emptyLabel={this.getEmptyLabel()}
+          searchText={(this.state.isLoading ? 'Searching...' : this.getEmptyLabel())}
+              // DIRTY HACK
+              //  note: The default searchText string has been shown wrongly even if isLoading is false
+              //        since upgrade react-bootstrap-typeahead to v3.3.2 -- 2019.02.05 Yuki Takei
+          align="left"
+          submitFormOnEnter
           onSearch={this.search}
           onInputChange={this.onInputChange}
           onKeyDown={this.onKeyDown}
@@ -185,6 +198,7 @@ export default class SearchTypeahead extends React.Component {
       </div>
     );
   }
+
 }
 
 /**
@@ -196,7 +210,10 @@ SearchTypeahead.propTypes = {
   onSearchError:   PropTypes.func,
   onChange:        PropTypes.func,
   onSubmit:        PropTypes.func,
+  onInputChange:   PropTypes.func,
+  inputName:       PropTypes.string,
   emptyLabel:      PropTypes.string,
+  emptyLabelExceptError: PropTypes.string,
   placeholder:     PropTypes.string,
   keywordOnInit:   PropTypes.string,
   promptText:      PropTypes.object,
@@ -209,7 +226,7 @@ SearchTypeahead.defaultProps = {
   onSearchSuccess: noop,
   onSearchError:   noop,
   onChange:        noop,
-  emptyLabel:      null,
   placeholder:     '',
   keywordOnInit:   '',
+  onInputChange: () => {},
 };

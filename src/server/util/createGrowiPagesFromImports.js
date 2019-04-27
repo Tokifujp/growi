@@ -1,6 +1,4 @@
-module.exports = crowi => {
-  'use strict';
-
+module.exports = (crowi) => {
   const Page = crowi.model('Page');
 
   /**
@@ -11,44 +9,41 @@ module.exports = crowi => {
    *    user: Object
    * }]
    */
-  const createGrowiPages = (pages) => {
-    let errors = [];
+  const createGrowiPages = async(pages) => {
+    const promises = [];
+    const errors = [];
 
-    return new Promise((resolve, reject) => {
-      const promises = pages.map(page => {
-        return new Promise(async(resolve, reject) => {
-          const path = page.path;
-          const user = page.user;
-          const body = page.body;
-          const isCreatableName = await Page.isCreatableName(path);
-          const isPageNameTaken = await Page.findPage(path, user, null, true);
+    /* eslint-disable no-await-in-loop */
+    for (const page of pages) {
+      const path = page.path;
+      const user = page.user;
+      const body = page.body;
+      const isCreatableName = await Page.isCreatableName(path);
+      const isPageNameTaken = await Page.findByPathAndViewer(path, user);
 
-          if (isCreatableName && !isPageNameTaken) {
-            try {
-              await Page.create(path, body, user, { grant: Page.GRANT_PUBLIC, grantUserGroupId: null });
-            }
-            catch (err) {
-              errors.push(err);
-            }
-          }
-          else {
-            if (!isCreatableName) {
-              errors.push(new Error(`${path} is not a creatable name in Growi`));
-            }
-            if (isPageNameTaken) {
-              errors.push(new Error(`${path} already exists in Growi`));
-            }
-          }
+      if (isCreatableName && !isPageNameTaken) {
+        try {
+          const promise = Page.create(path, body, user, { grant: Page.GRANT_PUBLIC, grantUserGroupId: null });
+          promises.push(promise);
+        }
+        catch (err) {
+          errors.push(err);
+        }
+      }
+      else {
+        if (!isCreatableName) {
+          errors.push(new Error(`${path} is not a creatable name in Growi`));
+        }
+        if (isPageNameTaken) {
+          errors.push(new Error(`${path} already exists in Growi`));
+        }
+      }
+    }
+    /* eslint-enable no-await-in-loop */
 
-          resolve();
-        });
-      });
+    await Promise.all(promises);
 
-      Promise.all(promises)
-        .then(() => {
-          resolve(errors);
-        });
-    });
+    return errors;
   };
 
   return createGrowiPages;

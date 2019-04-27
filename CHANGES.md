@@ -1,12 +1,158 @@
-CHANGES
-========
+# CHANGES
 
-## 3.3.4-RC
+## 3.4.5-RC
 
+* Improvement: Pass autolink through the XSS filter according to CommonMark Spec
+* Fix: Update ElasticSearch index when deleting/duplicating pages
+* Fix: Xss filter breaks PlantUML arrows
+* Support: Support growi-plugin-lsx@2.2.0
+* Support: Upgrade libs
+    * growi-commons
+    * xss
+
+## 3.4.4
+
+* Fix: Comment component doesn't work
+
+## 3.4.3
+
+* Improvement: Add 'antarctic' theme
+* Support Apply eslint-config-airbnb based rules
+* Support Apply prettier and stylelint
+* Support: Upgrade libs
+    * csrf
+    * escape-string-regexp
+    * eslint
+    * express-session
+    * googleapis
+    * growi-commons
+    * i18next
+    * mini-css-extract-plugin
+    * nodemailer
+    * penpal
+    * react-i18next
+    * string-width
+
+## 3.4.2
+
+* Fix: Nofitication to Slack doesn't work
+    * Introduced by 3.4.0
+
+## 3.4.1
+
+* Fix: "Cannot find module 'stream-to-promise'" occured when build client with `FILE_UPLOAD=local`
+
+## 3.4.0
+
+### BREAKING CHANGES
+
+None.
+
+Upgrading Guide: https://docs.growi.org/guide/upgrading/34x.html
+
+### Updates
+
+* Improvement: Restrict to access attachments when the user is not allowed to see page
+* Improvement: Show fans and visitors of page
+* Improvement: Full text search tokenizing
+* Improvement: Markdown comment on Crowi Classic Layout
+* Fix: Profile image is not displayed when `FILE_UPLOAD=mongodb`
+* Fix: Posting comment doesn't work under Crowi Classic Layout
+    * Introduced by 3.1.5
+* Fix: HackMD doesn't work when `siteUrl` ends with slash
+* Fix: Ensure not to be able to move/duplicate page to the path which has trailing slash
+* Support: Launch with Node.js v10
+* Support: Launch with MongoDB 3.6
+* Support: Launch with Elasticsearch 6.6
+* Support: Upgrade libs
+    * bootstrap-sass
+    * browser-sync
+    * react
+    * react-dom
+
+
+## 3.3.10
+
+* Feature: PlantUML and Blockdiag on presentation
+* Improvement: Render slides of presentation with GrowiRenderer
+* Fix: Unportalizing doesn't work
+* Support: Use mini-css-extract-plugin instead of extract extract-text-webpack-plugin
+* Support: Use terser-webpack-plugin instead of uglifyjs-webpack-plugin
+* Support: Upgrade libs
+    * csv-to-markdown-table
+    * file-loader
+    * googleapis
+    * i18next-browser-languagedetector
+    * mocha
+    * react-waypoint
+    * webpack
+    * webpack-assets-manifest
+    * webpack-cli
+    * webpack-merge
+
+## 3.3.9
+
+* Fix: Import from Qiita:Team doesn't work
+    * Introduced by 3.3.0
+* Fix: Typeahead shows autocomplete wrongly
+    * Introduced by 3.3.8
+* Support: Upgrade libs
+    * react-bootstrap-typeahead
+
+## 3.3.8
+
+* Fix: Move/Duplicate don't work
+    * Introduced by 3.3.7
+* Fix: Server doesn't respond when root page is restricted
+* Support: Upgrade libs
+    * react
+    * react-bootstrap-typeahead
+
+## 3.3.7
+
+* Feature: Editor toolbar
+* Feature: `prefix:/path` searching syntax to filter with page path prefix
+* Feature: Add an option to filter only children to searching box of navbar
+* Improvement: Suggest page path when moving/duplicating/searching
+* Fix: Anonymous users couldn't search
+    * Introduced by 3.3.6
+* I18n: Searching help
+* Support: Prepare to suppoert Node.js v10
+* Support: Upgrade libs
+    * node-sass
+
+## 3.3.6
+
+* Improvement: Site URL settings must be set
+* Improvement: Site URL settings can be set with environment variable
+* Fix: "Anyone with the link" ACL doesn't work correctly
+    * Introduced by 3.3.0
+* Fix: Related pages list of /admin/user-group-detail/xxx doesn't show anything
+    * Introduced by 3.3.0
+* Fix: Diff of revision contents doesn't appeared when notifing with slack
+* Fix: NPE occured on /admin/security when Crowi Classic Auth Mechanism is set
+* Fix: Coudn't render Timing Diagram with PlantUML
+* I18n: Cheatsheet for editor
+* I18n: Some admin pages
+* Support: Upgrade libs
+    * diff
+    * markdown-it-plantuml
+    * mongoose
+    * nodemailer
+    * mongoose-gridfs
+    * sinon
+    * sinon-chai
+
+## 3.3.5 (Missing number)
+
+## 3.3.4
+
+* Improvement: SAML configuration with environment variables
 * Improvement: Upload file with pasting from clipboard
 * Fix: `/_api/revisions.get` doesn't populate author data correctly
 * Fix: Wrong OAuth callback url are shown at admin page
 * Fix: Connecting to MongoDB failed when processing migration
+* Support: Get ready to use new config management system
 
 ## 3.3.3
 
@@ -26,7 +172,7 @@ CHANGES
 ## 3.3.2
 
 * Fix: Specified Group ACL is not persisted correctly
-    * Introduced 3.3.0
+    * Introduced by 3.3.0
 
 ## 3.3.1
 

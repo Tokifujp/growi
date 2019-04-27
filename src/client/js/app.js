@@ -1,44 +1,49 @@
+/* eslint-disable max-len */
+
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { I18nextProvider } from 'react-i18next';
 import * as toastr from 'toastr';
 
-import i18nFactory from './i18n';
-
 import loggerFactory from '@alias/logger';
 import Xss from '@commons/service/xss';
+import * as entities from 'entities';
+import i18nFactory from './i18n';
+
 
 import Crowi from './util/Crowi';
 // import CrowiRenderer from './util/CrowiRenderer';
 import GrowiRenderer from './util/GrowiRenderer';
 
-import HeaderSearchBox  from './components/HeaderSearchBox';
-import SearchPage       from './components/SearchPage';
-import PageEditor       from './components/PageEditor';
-import OptionsSelector  from './components/PageEditor/OptionsSelector';
+import HeaderSearchBox from './components/HeaderSearchBox';
+import SearchPage from './components/SearchPage';
+import PageEditor from './components/PageEditor';
+// eslint-disable-next-line import/no-duplicates
+import OptionsSelector from './components/PageEditor/OptionsSelector';
+// eslint-disable-next-line import/no-duplicates
 import { EditorOptions, PreviewOptions } from './components/PageEditor/OptionsSelector';
 import SavePageControls from './components/SavePageControls';
 import PageEditorByHackmd from './components/PageEditorByHackmd';
-import Page             from './components/Page';
-import PageListSearch   from './components/PageListSearch';
-import PageHistory      from './components/PageHistory';
-import PageComments     from './components/PageComments';
+import Page from './components/Page';
+import PageHistory from './components/PageHistory';
+import PageComments from './components/PageComments';
 import CommentForm from './components/PageComment/CommentForm';
-import PageAttachment   from './components/PageAttachment';
-import PageStatusAlert  from './components/PageStatusAlert';
-import SeenUserList     from './components/SeenUserList';
-import RevisionPath     from './components/Page/RevisionPath';
-import RevisionUrl      from './components/Page/RevisionUrl';
-import BookmarkButton   from './components/BookmarkButton';
-import NewPageNameInput from './components/NewPageNameInput';
+import PageAttachment from './components/PageAttachment';
+import PageStatusAlert from './components/PageStatusAlert';
+import RevisionPath from './components/Page/RevisionPath';
+import TagViewer from './components/Page/TagViewer';
+import RevisionUrl from './components/Page/RevisionUrl';
+import BookmarkButton from './components/BookmarkButton';
+import LikeButton from './components/LikeButton';
+import PagePathAutoComplete from './components/PagePathAutoComplete';
 import RecentCreated from './components/RecentCreated/RecentCreated';
+import UserPictureList from './components/Common/UserPictureList';
 
-import CustomCssEditor  from './components/Admin/CustomCssEditor';
+import CustomCssEditor from './components/Admin/CustomCssEditor';
 import CustomScriptEditor from './components/Admin/CustomScriptEditor';
 import CustomHeaderEditor from './components/Admin/CustomHeaderEditor';
 import AdminRebuildSearch from './components/Admin/AdminRebuildSearch';
 
-import * as entities from 'entities';
 
 const logger = loggerFactory('growi:app');
 
@@ -64,6 +69,7 @@ let pagePath;
 let pageContent = '';
 let markdown = '';
 let slackChannels;
+let pageTags = [];
 if (mainContent !== null) {
   pageId = mainContent.getAttribute('data-page-id') || null;
   pageRevisionId = mainContent.getAttribute('data-page-revision-id');
@@ -97,8 +103,8 @@ const socketClientId = crowi.getSocketClientId();
 
 const crowiRenderer = new GrowiRenderer(crowi, null, {
   mode: 'page',
-  isAutoSetup: false,                                     // manually setup because plugins may configure it
-  renderToc: crowi.getCrowiForJquery().renderTocContent,  // function for rendering Table Of Contents
+  isAutoSetup: false, // manually setup because plugins may configure it
+  renderToc: crowi.getCrowiForJquery().renderTocContent, // function for rendering Table Of Contents
 });
 window.crowiRenderer = crowiRenderer;
 
@@ -110,9 +116,17 @@ if (isEnabledPlugins) {
 }
 
 /**
+ * receive tags from PageTagForm
+ * @param {Array} tagData new tags
+ */
+const setTagData = function(tagData) {
+  pageTags = tagData;
+};
+
+/**
  * component store
  */
-let componentInstances = {};
+const componentInstances = {};
 
 /**
  * save success handler when reloading is not needed
@@ -187,6 +201,7 @@ const saveWithShortcut = function(markdown) {
   // get options
   const options = componentInstances.savePageControls.getCurrentOptionsToSave();
   options.socketClientId = socketClientId;
+  options.pageTags = pageTags;
 
   if (editorMode === 'hackmd') {
     // set option to sync
@@ -195,7 +210,7 @@ const saveWithShortcut = function(markdown) {
     revisionId = componentInstances.pageEditorByHackmd.getRevisionIdHackmdSynced();
   }
 
-  let promise = undefined;
+  let promise;
   if (pageId == null) {
     promise = crowi.createPage(pagePath, markdown, options);
   }
@@ -210,7 +225,7 @@ const saveWithShortcut = function(markdown) {
 
 const saveWithSubmitButtonSuccessHandler = function() {
   crowi.clearDraft(pagePath);
-  location.href = pagePath;
+  window.location.href = pagePath;
 };
 
 const saveWithSubmitButton = function(submitOpts) {
@@ -224,11 +239,12 @@ const saveWithSubmitButton = function(submitOpts) {
   // get options
   const options = componentInstances.savePageControls.getCurrentOptionsToSave();
   options.socketClientId = socketClientId;
+  options.pageTags = pageTags;
 
   // set 'submitOpts.overwriteScopesOfDescendants' to options
   options.overwriteScopesOfDescendants = submitOpts ? !!submitOpts.overwriteScopesOfDescendants : false;
 
-  let promise = undefined;
+  let promise;
   if (editorMode === 'hackmd') {
     // get markdown
     promise = componentInstances.pageEditorByHackmd.getMarkdown();
@@ -243,12 +259,12 @@ const saveWithSubmitButton = function(submitOpts) {
   }
   // create or update
   if (pageId == null) {
-    promise = promise.then(markdown => {
+    promise = promise.then((markdown) => {
       return crowi.createPage(pagePath, markdown, options);
     });
   }
   else {
-    promise = promise.then(markdown => {
+    promise = promise.then((markdown) => {
       return crowi.updatePage(pageId, revisionId, markdown, options);
     });
   }
@@ -273,27 +289,28 @@ if (!pageRevisionId && draft != null) {
  *  value: React Element
  */
 const componentMappings = {
-  'search-top': <HeaderSearchBox crowi={crowi} />,
-  'search-sidebar': <HeaderSearchBox crowi={crowi} />,
-  'search-page': <SearchPage crowi={crowi} crowiRenderer={crowiRenderer} />,
-  'page-list-search': <PageListSearch crowi={crowi} />,
+  'search-top': <I18nextProvider i18n={i18n}><HeaderSearchBox crowi={crowi} /></I18nextProvider>,
+  'search-sidebar': <I18nextProvider i18n={i18n}><HeaderSearchBox crowi={crowi} /></I18nextProvider>,
+  'search-page': <I18nextProvider i18n={i18n}><SearchPage crowi={crowi} crowiRenderer={crowiRenderer} /></I18nextProvider>,
 
-  //'revision-history': <PageHistory pageId={pageId} />,
-  'seen-user-list': <SeenUserList pageId={pageId} crowi={crowi} />,
+  // 'revision-history': <PageHistory pageId={pageId} />,
   'bookmark-button': <BookmarkButton pageId={pageId} crowi={crowi} />,
   'bookmark-button-lg': <BookmarkButton pageId={pageId} crowi={crowi} size="lg" />,
 
-  'page-name-input': <NewPageNameInput crowi={crowi} parentPageName={pagePath} />,
+  'create-page-name-input': <PagePathAutoComplete crowi={crowi} initializedPath={pagePath} addTrailingSlash />,
+  'rename-page-name-input': <PagePathAutoComplete crowi={crowi} initializedPath={pagePath} />,
+  'duplicate-page-name-input': <PagePathAutoComplete crowi={crowi} initializedPath={pagePath} />,
 
 };
 // additional definitions if data exists
 if (pageId) {
   componentMappings['page-comments-list'] = <PageComments pageId={pageId} revisionId={pageRevisionId} revisionCreatedAt={pageRevisionCreatedAt} crowi={crowi} crowiOriginRenderer={crowiRenderer} />;
-  componentMappings['page-attachment'] = <PageAttachment pageId={pageId} pageContent={pageContent} crowi={crowi} />;
+  componentMappings['page-attachment'] = <PageAttachment pageId={pageId} markdown={markdown} crowi={crowi} />;
 }
 if (pagePath) {
-  componentMappings['page'] = <Page crowi={crowi} crowiRenderer={crowiRenderer} markdown={markdown} pagePath={pagePath} showHeadEditButton={true} onSaveWithShortcut={saveWithShortcut} />;
+  componentMappings.page = <Page crowi={crowi} crowiRenderer={crowiRenderer} markdown={markdown} pagePath={pagePath} onSaveWithShortcut={saveWithShortcut} />;
   componentMappings['revision-path'] = <RevisionPath pagePath={pagePath} crowi={crowi} />;
+  componentMappings['tag-viewer'] = <TagViewer crowi={crowi} pageId={pageId} sendTagData={setTagData} />;
   componentMappings['revision-url'] = <RevisionUrl pageId={pageId} pagePath={pagePath} />;
 }
 
@@ -305,8 +322,39 @@ Object.keys(componentMappings).forEach((key) => {
 });
 
 // set page if exists
-if (componentInstances['page'] != null) {
-  crowi.setPage(componentInstances['page']);
+if (componentInstances.page != null) {
+  crowi.setPage(componentInstances.page);
+}
+
+// render LikeButton
+const likeButtonElem = document.getElementById('like-button');
+if (likeButtonElem) {
+  const isLiked = likeButtonElem.dataset.liked === 'true';
+  ReactDOM.render(
+    <LikeButton crowi={crowi} pageId={pageId} isLiked={isLiked} />,
+    likeButtonElem,
+  );
+}
+
+// render UserPictureList for seen-user-list
+const seenUserListElem = document.getElementById('seen-user-list');
+if (seenUserListElem) {
+  const userIdsStr = seenUserListElem.dataset.userIds;
+  const userIds = userIdsStr.split(',');
+  ReactDOM.render(
+    <UserPictureList crowi={crowi} userIds={userIds} />,
+    seenUserListElem,
+  );
+}
+// render UserPictureList for liker-list
+const likerListElem = document.getElementById('liker-list');
+if (likerListElem) {
+  const userIdsStr = likerListElem.dataset.userIds;
+  const userIds = userIdsStr.split(',');
+  ReactDOM.render(
+    <UserPictureList crowi={crowi} userIds={userIds} />,
+    likerListElem,
+  );
 }
 
 // render SavePageControls
@@ -318,16 +366,22 @@ if (savePageControlsElem) {
   const grantGroupName = savePageControlsElem.dataset.grantGroupName;
   ReactDOM.render(
     <I18nextProvider i18n={i18n}>
-      <SavePageControls crowi={crowi} onSubmit={saveWithSubmitButton}
-          ref={(elem) => {
+      <SavePageControls
+        crowi={crowi}
+        onSubmit={saveWithSubmitButton}
+        ref={(elem) => {
             if (savePageControls == null) {
-              savePageControls = elem.getWrappedInstance();
+              savePageControls = elem;
             }
           }}
-          pageId={pageId} pagePath={pagePath} slackChannels={slackChannels}
-          grant={grant} grantGroupId={grantGroupId} grantGroupName={grantGroupName} />
+        pageId={pageId}
+        slackChannels={slackChannels}
+        grant={grant}
+        grantGroupId={grantGroupId}
+        grantGroupName={grantGroupName}
+      />
     </I18nextProvider>,
-    savePageControlsElem
+    savePageControlsElem,
   );
   componentInstances.savePageControls = savePageControls;
 }
@@ -335,13 +389,13 @@ if (savePageControlsElem) {
 const recentCreatedControlsElem = document.getElementById('user-created-list');
 if (recentCreatedControlsElem) {
   let limit = crowi.getConfig().recentCreatedLimit;
-  if (null == limit) {
+  if (limit == null) {
     limit = 10;
   }
   ReactDOM.render(
-    <RecentCreated  crowi={crowi} pageId={pageId} limit={limit} >
+    <RecentCreated crowi={crowi} pageId={pageId} limit={limit}>
 
-    </RecentCreated>, document.getElementById('user-created-list')
+    </RecentCreated>, document.getElementById('user-created-list'),
   );
 }
 
@@ -353,12 +407,17 @@ let pageEditorByHackmd = null;
 const pageEditorWithHackmdElem = document.getElementById('page-editor-with-hackmd');
 if (pageEditorWithHackmdElem) {
   pageEditorByHackmd = ReactDOM.render(
-    <PageEditorByHackmd crowi={crowi}
-        pageId={pageId} revisionId={pageRevisionId}
-        pageIdOnHackmd={pageIdOnHackmd} revisionIdHackmdSynced={pageRevisionIdHackmdSynced} hasDraftOnHackmd={hasDraftOnHackmd}
-        markdown={markdown}
-        onSaveWithShortcut={saveWithShortcut} />,
-    pageEditorWithHackmdElem
+    <PageEditorByHackmd
+      crowi={crowi}
+      pageId={pageId}
+      revisionId={pageRevisionId}
+      pageIdOnHackmd={pageIdOnHackmd}
+      revisionIdHackmdSynced={pageRevisionIdHackmdSynced}
+      hasDraftOnHackmd={hasDraftOnHackmd}
+      markdown={markdown}
+      onSaveWithShortcut={saveWithShortcut}
+    />,
+    pageEditorWithHackmdElem,
   );
   componentInstances.pageEditorByHackmd = pageEditorByHackmd;
 }
@@ -373,13 +432,26 @@ const previewOptions = new PreviewOptions(crowi.previewOptions);
 // render PageEditor
 const pageEditorElem = document.getElementById('page-editor');
 if (pageEditorElem) {
-  pageEditor = ReactDOM.render(
-    <PageEditor crowi={crowi} crowiRenderer={crowiRenderer}
-        pageId={pageId} revisionId={pageRevisionId} pagePath={pagePath}
+  ReactDOM.render(
+    <I18nextProvider i18n={i18n}>
+      <PageEditor
+        ref={(elem) => {
+          if (pageEditor == null) {
+            pageEditor = elem;
+          }
+        }}
+        crowi={crowi}
+        crowiRenderer={crowiRenderer}
+        pageId={pageId}
+        revisionId={pageRevisionId}
+        pagePath={pagePath}
         markdown={markdown}
-        editorOptions={editorOptions} previewOptions={previewOptions}
-        onSaveWithShortcut={saveWithShortcut} />,
-    pageEditorElem
+        editorOptions={editorOptions}
+        previewOptions={previewOptions}
+        onSaveWithShortcut={saveWithShortcut}
+      />
+    </I18nextProvider>,
+    pageEditorElem,
   );
   componentInstances.pageEditor = pageEditor;
   // set refs for setCaretLine/forceToFocus when tab is changed
@@ -396,15 +468,20 @@ if (writeCommentElem) {
     }
   };
   ReactDOM.render(
-    <CommentForm crowi={crowi}
-      crowiOriginRenderer={crowiRenderer}
-      pageId={pageId}
-      pagePath={pagePath}
-      revisionId={pageRevisionId}
-      onPostComplete={postCompleteHandler}
-      editorOptions={editorOptions}
-      slackChannels = {slackChannels}/>,
-    writeCommentElem);
+    <I18nextProvider i18n={i18n}>
+      <CommentForm
+        crowi={crowi}
+        crowiOriginRenderer={crowiRenderer}
+        pageId={pageId}
+        pagePath={pagePath}
+        revisionId={pageRevisionId}
+        onPostComplete={postCompleteHandler}
+        editorOptions={editorOptions}
+        slackChannels={slackChannels}
+      />
+    </I18nextProvider>,
+    writeCommentElem,
+  );
 }
 
 // render OptionsSelector
@@ -412,8 +489,10 @@ const pageEditorOptionsSelectorElem = document.getElementById('page-editor-optio
 if (pageEditorOptionsSelectorElem) {
   ReactDOM.render(
     <I18nextProvider i18n={i18n}>
-      <OptionsSelector crowi={crowi}
-        editorOptions={editorOptions} previewOptions={previewOptions}
+      <OptionsSelector
+        crowi={crowi}
+        editorOptions={editorOptions}
+        previewOptions={previewOptions}
         onChange={(newEditorOptions, newPreviewOptions) => { // set onChange event handler
           // set options
           pageEditor.setEditorOptions(newEditorOptions);
@@ -421,9 +500,10 @@ if (pageEditorOptionsSelectorElem) {
           // save
           crowi.saveEditorOptions(newEditorOptions);
           crowi.savePreviewOptions(newPreviewOptions);
-        }} />
+        }}
+      />
     </I18nextProvider>,
-    pageEditorOptionsSelectorElem
+    pageEditorOptionsSelectorElem,
   );
 }
 
@@ -433,15 +513,18 @@ const pageStatusAlertElem = document.getElementById('page-status-alert');
 if (pageStatusAlertElem) {
   ReactDOM.render(
     <I18nextProvider i18n={i18n}>
-      <PageStatusAlert crowi={crowi}
-          ref={(elem) => {
+      <PageStatusAlert
+        ref={(elem) => {
             if (pageStatusAlert == null) {
-              pageStatusAlert = elem.getWrappedInstance();
+              pageStatusAlert = elem;
             }
           }}
-          revisionId={pageRevisionId} revisionIdHackmdSynced={pageRevisionIdHackmdSynced} hasDraftOnHackmd={hasDraftOnHackmd} />
+        revisionId={pageRevisionId}
+        revisionIdHackmdSynced={pageRevisionIdHackmdSynced}
+        hasDraftOnHackmd={hasDraftOnHackmd}
+      />
     </I18nextProvider>,
-    pageStatusAlertElem
+    pageStatusAlertElem,
   );
   componentInstances.pageStatusAlert = pageStatusAlert;
 }
@@ -454,7 +537,7 @@ if (customCssEditorElem != null) {
 
   ReactDOM.render(
     <CustomCssEditor inputElem={customCssInputElem} />,
-    customCssEditorElem
+    customCssEditorElem,
   );
 }
 const customScriptEditorElem = document.getElementById('custom-script-editor');
@@ -464,7 +547,7 @@ if (customScriptEditorElem != null) {
 
   ReactDOM.render(
     <CustomScriptEditor inputElem={customScriptInputElem} />,
-    customScriptEditorElem
+    customScriptEditorElem,
   );
 }
 const customHeaderEditorElem = document.getElementById('custom-header-editor');
@@ -474,14 +557,14 @@ if (customHeaderEditorElem != null) {
 
   ReactDOM.render(
     <CustomHeaderEditor inputElem={customHeaderInputElem} />,
-    customHeaderEditorElem
+    customHeaderEditorElem,
   );
 }
 const adminRebuildSearchElem = document.getElementById('admin-rebuild-search');
 if (adminRebuildSearchElem != null) {
   ReactDOM.render(
     <AdminRebuildSearch crowi={crowi} />,
-    adminRebuildSearchElem
+    adminRebuildSearchElem,
   );
 }
 
@@ -495,7 +578,7 @@ function updatePageStatusAlert(page, user) {
     pageStatusAlert.setLastUpdateUsername(user.name);
   }
 }
-socket.on('page:create', function(data) {
+socket.on('page:create', (data) => {
   // skip if triggered myself
   if (data.socketClientId != null && data.socketClientId === socketClientId) {
     return;
@@ -504,11 +587,11 @@ socket.on('page:create', function(data) {
   logger.debug({ obj: data }, `websocket on 'page:create'`); // eslint-disable-line quotes
 
   // update PageStatusAlert
-  if (data.page.path == pagePath) {
+  if (data.page.path === pagePath) {
     updatePageStatusAlert(data.page, data.user);
   }
 });
-socket.on('page:update', function(data) {
+socket.on('page:update', (data) => {
   // skip if triggered myself
   if (data.socketClientId != null && data.socketClientId === socketClientId) {
     return;
@@ -516,7 +599,7 @@ socket.on('page:update', function(data) {
 
   logger.debug({ obj: data }, `websocket on 'page:update'`); // eslint-disable-line quotes
 
-  if (data.page.path == pagePath) {
+  if (data.page.path === pagePath) {
     // update PageStatusAlert
     updatePageStatusAlert(data.page, data.user);
     // update PageEditorByHackmd
@@ -528,7 +611,7 @@ socket.on('page:update', function(data) {
     }
   }
 });
-socket.on('page:delete', function(data) {
+socket.on('page:delete', (data) => {
   // skip if triggered myself
   if (data.socketClientId != null && data.socketClientId === socketClientId) {
     return;
@@ -537,11 +620,11 @@ socket.on('page:delete', function(data) {
   logger.debug({ obj: data }, `websocket on 'page:delete'`); // eslint-disable-line quotes
 
   // update PageStatusAlert
-  if (data.page.path == pagePath) {
+  if (data.page.path === pagePath) {
     updatePageStatusAlert(data.page, data.user);
   }
 });
-socket.on('page:editingWithHackmd', function(data) {
+socket.on('page:editingWithHackmd', (data) => {
   // skip if triggered myself
   if (data.socketClientId != null && data.socketClientId === socketClientId) {
     return;
@@ -549,7 +632,7 @@ socket.on('page:editingWithHackmd', function(data) {
 
   logger.debug({ obj: data }, `websocket on 'page:editingWithHackmd'`); // eslint-disable-line quotes
 
-  if (data.page.path == pagePath) {
+  if (data.page.path === pagePath) {
     // update PageStatusAlert
     const pageStatusAlert = componentInstances.pageStatusAlert;
     if (pageStatusAlert != null) {
@@ -564,9 +647,10 @@ socket.on('page:editingWithHackmd', function(data) {
 });
 
 // うわーもうー (commented by Crowi team -- 2018.03.23 Yuki Takei)
-$('a[data-toggle="tab"][href="#revision-history"]').on('show.bs.tab', function() {
+$('a[data-toggle="tab"][href="#revision-history"]').on('show.bs.tab', () => {
   ReactDOM.render(
     <I18nextProvider i18n={i18n}>
       <PageHistory pageId={pageId} crowi={crowi} />
-    </I18nextProvider>, document.getElementById('revision-history'));
+    </I18nextProvider>, document.getElementById('revision-history'),
+  );
 });

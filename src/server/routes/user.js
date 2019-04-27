@@ -1,40 +1,39 @@
 module.exports = function(crowi, app) {
-  'use strict';
+  const User = crowi.model('User');
+  const Bookmark = crowi.model('Bookmark');
+  const ApiResponse = require('../util/apiResponse');
 
-  var Page = crowi.model('Page')
-    , User = crowi.model('User')
-    , Revision = crowi.model('Revision')
-    , Bookmark = crowi.model('Bookmark')
-    , ApiResponse = require('../util/apiResponse')
-    , actions = {}
-    , api = {};
+  const actions = {};
+
+
+  const api = {};
 
   actions.api = api;
 
   api.bookmarks = function(req, res) {
-    var options = {
+    const options = {
       skip: req.query.offset || 0,
       limit: req.query.limit || 50,
     };
-    Bookmark.findByUser(req.user, options, function(err, bookmarks) {
+    Bookmark.findByUser(req.user, options, (err, bookmarks) => {
       res.json(bookmarks);
     });
   };
 
   api.checkUsername = function(req, res) {
-    var username = req.query.username;
+    const username = req.query.username;
 
     User.findUserByUsername(username)
-    .then(function(userData) {
-      if (userData) {
-        return res.json({ valid: false });
-      }
-      else {
+      .then((userData) => {
+        if (userData) {
+          return res.json({ valid: false });
+        }
+
         return res.json({ valid: true });
-      }
-    }).catch(function(err) {
-      return res.json({ valid: true });
-    });
+      })
+      .catch((err) => {
+        return res.json({ valid: true });
+      });
   };
 
   /**
@@ -44,10 +43,10 @@ module.exports = function(crowi, app) {
    *
    * @apiParam {String} user_ids
    */
-  api.list = function(req, res) {
-    var userIds = req.query.user_ids || null; // TODO: handling
+  api.list = async function(req, res) {
+    const userIds = req.query.user_ids || null; // TODO: handling
 
-    var userFetcher;
+    let userFetcher;
     if (!userIds || userIds.split(',').length <= 0) {
       userFetcher = User.findAllUsers();
     }
@@ -55,25 +54,22 @@ module.exports = function(crowi, app) {
       userFetcher = User.findUsersByIds(userIds.split(','));
     }
 
-    userFetcher
-    .then(function(userList) {
-      return userList.map((user) => {
+    const data = {};
+    try {
+      const users = await userFetcher.populate(User.IMAGE_POPULATION);
+      data.users = users.map((user) => {
         // omit email
-        if (true !== user.isEmailPublished) { // compare to 'true' because Crowi original data doesn't have 'isEmailPublished'
+        if (user.isEmailPublished !== true) { // compare to 'true' because Crowi original data doesn't have 'isEmailPublished'
           user.email = undefined;
         }
-        return user;
+        return user.toObject({ virtuals: true });
       });
-    })
-    .then(function(userList) {
-      var result = {
-        users: userList,
-      };
-
-      return res.json(ApiResponse.success(result));
-    }).catch(function(err) {
+    }
+    catch (err) {
       return res.json(ApiResponse.error(err));
-    });
+    }
+
+    return res.json(ApiResponse.success(data));
   };
 
   return actions;
