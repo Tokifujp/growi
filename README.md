@@ -261,4 +261,4 @@ License
 Forked for
 ==========
 
-https://toki-notes.herokuapp.com
+https://toqiita.herokuapp.com
