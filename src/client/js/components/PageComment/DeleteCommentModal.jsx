@@ -6,8 +6,8 @@ import Modal from 'react-bootstrap/es/Modal';
 
 import dateFnsFormat from 'date-fns/format';
 
-import ReactUtils from '../ReactUtils';
 import UserPicture from '../User/UserPicture';
+import Username from '../User/Username';
 
 export default class DeleteCommentModal extends React.Component {
 
@@ -32,7 +32,7 @@ export default class DeleteCommentModal extends React.Component {
     if (commentBody.length > DeleteCommentModal.OMIT_BODY_THRES) { // omit
       commentBody = `${commentBody.substr(0, DeleteCommentModal.OMIT_BODY_THRES)}...`;
     }
-    commentBody = ReactUtils.nl2br(commentBody);
+    commentBody = <span style={{ whiteSpace: 'pre-wrap' }}>{commentBody}</span>;
 
     return (
       <Modal show={this.props.isShown} onHide={this.props.cancel} className="page-comment-delete-modal">
@@ -43,7 +43,7 @@ export default class DeleteCommentModal extends React.Component {
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <UserPicture user={comment.creator} size="xs" /> <strong>{comment.creator.username}</strong> wrote on {commentDate}:
+          <UserPicture user={comment.creator} size="xs" /> <strong><Username user={comment.creator}></Username></strong> wrote on {commentDate}:
           <p className="well well-sm comment-body m-t-5">{commentBody}</p>
         </Modal.Body>
         <Modal.Footer>

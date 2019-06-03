@@ -5,8 +5,8 @@ import dateFnsFormat from 'date-fns/format';
 
 import RevisionBody from '../Page/RevisionBody';
 
-import ReactUtils from '../ReactUtils';
 import UserPicture from '../User/UserPicture';
+import Username from '../User/Username';
 
 /**
  *
@@ -23,6 +23,7 @@ export default class Comment extends React.Component {
 
     this.state = {
       html: '',
+      isLayoutTypeGrowi: false,
     };
 
     this.isCurrentUserIsAuthor = this.isCurrentUserEqualsToAuthor.bind(this);
@@ -30,11 +31,18 @@ export default class Comment extends React.Component {
     this.getRootClassName = this.getRootClassName.bind(this);
     this.getRevisionLabelClassName = this.getRevisionLabelClassName.bind(this);
     this.deleteBtnClickedHandler = this.deleteBtnClickedHandler.bind(this);
+    this.renderText = this.renderText.bind(this);
     this.renderHtml = this.renderHtml.bind(this);
   }
 
   componentWillMount() {
     this.renderHtml(this.props.comment.comment);
+    this.init();
+  }
+
+  init() {
+    const layoutType = this.props.crowi.getConfig().layoutType;
+    this.setState({ isLayoutTypeGrowi: layoutType === 'crowi-plus' || layoutType === 'growi' });
   }
 
   componentWillReceiveProps(nextProps) {
@@ -47,11 +55,11 @@ export default class Comment extends React.Component {
   }
 
   isCurrentUserEqualsToAuthor() {
-    return this.props.comment.creator.username === this.props.currentUserId;
+    return this.props.comment.creator.username === this.props.crowi.me;
   }
 
   isCurrentRevision() {
-    return this.props.comment.revision === this.props.currentRevisionId;
+    return this.props.comment.revision === this.props.revisionId;
   }
 
   getRootClassName() {
@@ -66,6 +74,10 @@ export default class Comment extends React.Component {
 
   deleteBtnClickedHandler() {
     this.props.deleteBtnClicked(this.props.comment);
+  }
+
+  renderText(comment) {
+    return <span style={{ whiteSpace: 'pre-wrap' }}>{comment}</span>;
   }
 
   renderRevisionBody() {
@@ -112,6 +124,29 @@ export default class Comment extends React.Component {
 
   }
 
+  renderReplies() {
+    const isLayoutTypeGrowi = this.state.isLayoutTypeGrowi;
+    let replyList = this.props.replyList;
+    if (!isLayoutTypeGrowi) {
+      replyList = replyList.slice().reverse();
+    }
+    return replyList.map((reply) => {
+      return (
+        <div key={reply._id} className="col-xs-offset-1 col-xs-11 col-sm-offset-1 col-sm-11 col-md-offset-1 col-md-11 col-lg-offset-1 col-lg-11">
+          <Comment
+            comment={reply}
+            deleteBtnClicked={this.props.deleteBtnClicked}
+            crowiRenderer={this.props.crowiRenderer}
+            crowi={this.props.crowi}
+            replyList={[]}
+            revisionCreatedAt={this.props.revisionCreatedAt}
+            revisionId={this.props.revisionId}
+          />
+        </div>
+      );
+    });
+  }
+
   render() {
     const comment = this.props.comment;
     const creator = comment.creator;
@@ -119,30 +154,50 @@ export default class Comment extends React.Component {
 
     const rootClassName = this.getRootClassName();
     const commentDate = dateFnsFormat(comment.createdAt, 'YYYY/MM/DD HH:mm');
-    const commentBody = isMarkdown ? this.renderRevisionBody() : ReactUtils.nl2br(comment.comment);
-    const creatorsPage = `/user/${creator.username}`;
+    const commentBody = isMarkdown ? this.renderRevisionBody() : this.renderText(comment.comment);
     const revHref = `?revision=${comment.revision}`;
     const revFirst8Letters = comment.revision.substr(-8);
     const revisionLavelClassName = this.getRevisionLabelClassName();
 
+    const revisionId = this.props.revisionId;
+    const revisionCreatedAt = this.props.revisionCreatedAt;
+    let isNewer;
+    if (comment.revision === revisionId) {
+      isNewer = 'page-comments-list-current';
+    }
+    else if (Date.parse(comment.createdAt) / 1000 > revisionCreatedAt) {
+      isNewer = 'page-comments-list-newer';
+    }
+    else {
+      isNewer = 'page-comments-list-older';
+    }
+
+
     return (
-      <div className={rootClassName}>
-        <a href={creatorsPage}>
-          <UserPicture user={creator} />
-        </a>
-        <div className="page-comment-main">
-          <div className="page-comment-creator">
-            <a href={creatorsPage}>{creator.username}</a>
+      <div>
+        <div className={isNewer}>
+          <div className={rootClassName}>
+            <UserPicture user={creator} />
+            <div className="page-comment-main">
+              <div className="page-comment-creator">
+                <Username user={creator} />
+              </div>
+              <div className="page-comment-body">{commentBody}</div>
+              <div className="page-comment-meta">
+                {commentDate}&nbsp;
+                <a className={revisionLavelClassName} href={revHref}>{revFirst8Letters}</a>
+              </div>
+              <div className="page-comment-control">
+                <button type="button" className="btn btn-link" onClick={this.deleteBtnClickedHandler}>
+                  <i className="ti-close"></i>
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="page-comment-body">{commentBody}</div>
-          <div className="page-comment-meta">
-            {commentDate}&nbsp;
-            <a className={revisionLavelClassName} href={revHref}>{revFirst8Letters}</a>
-          </div>
-          <div className="page-comment-control">
-            <button type="button" className="btn btn-link" onClick={this.deleteBtnClickedHandler}>
-              <i className="ti-close"></i>
-            </button>
+        </div>
+        <div className="container-fluid">
+          <div className="row">
+            {this.renderReplies()}
           </div>
         </div>
       </div>
@@ -153,9 +208,10 @@ export default class Comment extends React.Component {
 
 Comment.propTypes = {
   comment: PropTypes.object.isRequired,
-  currentRevisionId: PropTypes.string.isRequired,
-  currentUserId: PropTypes.string.isRequired,
+  crowiRenderer: PropTypes.object.isRequired,
   deleteBtnClicked: PropTypes.func.isRequired,
   crowi: PropTypes.object.isRequired,
-  crowiRenderer: PropTypes.object.isRequired,
+  revisionId: PropTypes.string,
+  replyList: PropTypes.array,
+  revisionCreatedAt: PropTypes.number,
 };

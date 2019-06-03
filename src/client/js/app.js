@@ -2,6 +2,7 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom';
+import { Provider } from 'unstated';
 import { I18nextProvider } from 'react-i18next';
 import * as toastr from 'toastr';
 
@@ -17,6 +18,7 @@ import GrowiRenderer from './util/GrowiRenderer';
 
 import HeaderSearchBox from './components/HeaderSearchBox';
 import SearchPage from './components/SearchPage';
+import TagsList from './components/TagsList';
 import PageEditor from './components/PageEditor';
 // eslint-disable-next-line import/no-duplicates
 import OptionsSelector from './components/PageEditor/OptionsSelector';
@@ -27,22 +29,24 @@ import PageEditorByHackmd from './components/PageEditorByHackmd';
 import Page from './components/Page';
 import PageHistory from './components/PageHistory';
 import PageComments from './components/PageComments';
-import CommentForm from './components/PageComment/CommentForm';
+import CommentContainer from './components/PageComment/CommentContainer';
+import CommentEditorLazyRenderer from './components/PageComment/CommentEditorLazyRenderer';
 import PageAttachment from './components/PageAttachment';
 import PageStatusAlert from './components/PageStatusAlert';
 import RevisionPath from './components/Page/RevisionPath';
-import TagViewer from './components/Page/TagViewer';
-import RevisionUrl from './components/Page/RevisionUrl';
+import TagLabels from './components/Page/TagLabels';
 import BookmarkButton from './components/BookmarkButton';
 import LikeButton from './components/LikeButton';
 import PagePathAutoComplete from './components/PagePathAutoComplete';
 import RecentCreated from './components/RecentCreated/RecentCreated';
-import UserPictureList from './components/Common/UserPictureList';
+import MyDraftList from './components/MyDraftList/MyDraftList';
+import UserPictureList from './components/User/UserPictureList';
 
 import CustomCssEditor from './components/Admin/CustomCssEditor';
 import CustomScriptEditor from './components/Admin/CustomScriptEditor';
 import CustomHeaderEditor from './components/Admin/CustomHeaderEditor';
 import AdminRebuildSearch from './components/Admin/AdminRebuildSearch';
+import GroupDeleteModal from './components/GroupDeleteModal/GroupDeleteModal';
 
 
 const logger = loggerFactory('growi:app');
@@ -70,6 +74,7 @@ let pageContent = '';
 let markdown = '';
 let slackChannels;
 let pageTags = [];
+let templateTagData = '';
 if (mainContent !== null) {
   pageId = mainContent.getAttribute('data-page-id') || null;
   pageRevisionId = mainContent.getAttribute('data-page-revision-id');
@@ -79,6 +84,7 @@ if (mainContent !== null) {
   hasDraftOnHackmd = !!mainContent.getAttribute('data-page-has-draft-on-hackmd');
   pagePath = mainContent.attributes['data-path'].value;
   slackChannels = mainContent.getAttribute('data-slack-channels') || '';
+  templateTagData = mainContent.getAttribute('data-template-tags') || '';
   const rawText = document.getElementById('raw-text-original');
   if (rawText) {
     pageContent = rawText.innerHTML;
@@ -107,6 +113,9 @@ const crowiRenderer = new GrowiRenderer(crowi, null, {
   renderToc: crowi.getCrowiForJquery().renderTocContent, // function for rendering Table Of Contents
 });
 window.crowiRenderer = crowiRenderer;
+
+// create unstated container instance
+const commentContainer = new CommentContainer(crowi, pageId, pagePath, pageRevisionId);
 
 // FIXME
 const isEnabledPlugins = $('body').data('plugin-enabled');
@@ -283,6 +292,8 @@ if (!pageRevisionId && draft != null) {
   markdown = draft;
 }
 
+const pageEditorOptions = new EditorOptions(crowi.editorOptions);
+
 /**
  * define components
  *  key: id of element
@@ -297,21 +308,44 @@ const componentMappings = {
   'bookmark-button': <BookmarkButton pageId={pageId} crowi={crowi} />,
   'bookmark-button-lg': <BookmarkButton pageId={pageId} crowi={crowi} size="lg" />,
 
+  'tags-page': <I18nextProvider i18n={i18n}><TagsList crowi={crowi} /></I18nextProvider>,
+
   'create-page-name-input': <PagePathAutoComplete crowi={crowi} initializedPath={pagePath} addTrailingSlash />,
   'rename-page-name-input': <PagePathAutoComplete crowi={crowi} initializedPath={pagePath} />,
   'duplicate-page-name-input': <PagePathAutoComplete crowi={crowi} initializedPath={pagePath} />,
 
 };
+
 // additional definitions if data exists
+let pageComments = null;
 if (pageId) {
-  componentMappings['page-comments-list'] = <PageComments pageId={pageId} revisionId={pageRevisionId} revisionCreatedAt={pageRevisionCreatedAt} crowi={crowi} crowiOriginRenderer={crowiRenderer} />;
+  componentMappings['page-comments-list'] = (
+    <I18nextProvider i18n={i18n}>
+      <Provider inject={[commentContainer]}>
+        <PageComments
+          ref={(elem) => {
+            if (pageComments == null) {
+              pageComments = elem;
+            }
+          }}
+          revisionCreatedAt={pageRevisionCreatedAt}
+          pageId={pageId}
+          pagePath={pagePath}
+          editorOptions={pageEditorOptions}
+          slackChannels={slackChannels}
+          crowi={crowi}
+          crowiOriginRenderer={crowiRenderer}
+          revisionId={pageRevisionId}
+        />
+      </Provider>
+    </I18nextProvider>
+  );
   componentMappings['page-attachment'] = <PageAttachment pageId={pageId} markdown={markdown} crowi={crowi} />;
 }
 if (pagePath) {
   componentMappings.page = <Page crowi={crowi} crowiRenderer={crowiRenderer} markdown={markdown} pagePath={pagePath} onSaveWithShortcut={saveWithShortcut} />;
-  componentMappings['revision-path'] = <RevisionPath pagePath={pagePath} crowi={crowi} />;
-  componentMappings['tag-viewer'] = <TagViewer crowi={crowi} pageId={pageId} sendTagData={setTagData} />;
-  componentMappings['revision-url'] = <RevisionUrl pageId={pageId} pagePath={pagePath} />;
+  componentMappings['revision-path'] = <I18nextProvider i18n={i18n}><RevisionPath pageId={pageId} pagePath={pagePath} crowi={crowi} /></I18nextProvider>;
+  componentMappings['tag-label'] = <I18nextProvider i18n={i18n}><TagLabels crowi={crowi} pageId={pageId} sendTagData={setTagData} templateTagData={templateTagData} /></I18nextProvider>;
 }
 
 Object.keys(componentMappings).forEach((key) => {
@@ -399,6 +433,25 @@ if (recentCreatedControlsElem) {
   );
 }
 
+const myDraftControlsElem = document.getElementById('user-draft-list');
+if (myDraftControlsElem) {
+  let limit = crowi.getConfig().recentCreatedLimit;
+  if (limit == null) {
+    limit = 10;
+  }
+
+  ReactDOM.render(
+    <I18nextProvider i18n={i18n}>
+      <MyDraftList
+        limit={limit}
+        crowi={crowi}
+        crowiOriginRenderer={crowiRenderer}
+      />
+    </I18nextProvider>,
+    myDraftControlsElem,
+  );
+}
+
 /*
  * HackMD Editor
  */
@@ -461,25 +514,18 @@ if (pageEditorElem) {
 // render comment form
 const writeCommentElem = document.getElementById('page-comment-write');
 if (writeCommentElem) {
-  const pageCommentsElem = componentInstances['page-comments-list'];
-  const postCompleteHandler = (comment) => {
-    if (pageCommentsElem != null) {
-      pageCommentsElem.retrieveData();
-    }
-  };
   ReactDOM.render(
-    <I18nextProvider i18n={i18n}>
-      <CommentForm
-        crowi={crowi}
-        crowiOriginRenderer={crowiRenderer}
-        pageId={pageId}
-        pagePath={pagePath}
-        revisionId={pageRevisionId}
-        onPostComplete={postCompleteHandler}
-        editorOptions={editorOptions}
-        slackChannels={slackChannels}
-      />
-    </I18nextProvider>,
+    <Provider inject={[commentContainer]}>
+      <I18nextProvider i18n={i18n}>
+        <CommentEditorLazyRenderer
+          crowi={crowi}
+          crowiOriginRenderer={crowiRenderer}
+          editorOptions={pageEditorOptions}
+          slackChannels={slackChannels}
+        >
+        </CommentEditorLazyRenderer>
+      </I18nextProvider>
+    </Provider>,
     writeCommentElem,
   );
 }
@@ -565,6 +611,17 @@ if (adminRebuildSearchElem != null) {
   ReactDOM.render(
     <AdminRebuildSearch crowi={crowi} />,
     adminRebuildSearchElem,
+  );
+}
+const adminGrantSelectorElem = document.getElementById('admin-delete-user-group-modal');
+if (adminGrantSelectorElem != null) {
+  ReactDOM.render(
+    <I18nextProvider i18n={i18n}>
+      <GroupDeleteModal
+        crowi={crowi}
+      />
+    </I18nextProvider>,
+    adminGrantSelectorElem,
   );
 }
 
