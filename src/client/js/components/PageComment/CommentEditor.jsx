@@ -1,21 +1,23 @@
-/* eslint-disable react/no-multi-comp */
 import React from 'react';
 import PropTypes from 'prop-types';
-
-import { Subscribe } from 'unstated';
 
 import Button from 'react-bootstrap/es/Button';
 import Tab from 'react-bootstrap/es/Tab';
 import Tabs from 'react-bootstrap/es/Tabs';
 import * as toastr from 'toastr';
-import UserPicture from '../User/UserPicture';
 
+import AppContainer from '../../services/AppContainer';
+import PageContainer from '../../services/PageContainer';
+import CommentContainer from '../../services/CommentContainer';
+import EditorContainer from '../../services/EditorContainer';
 import GrowiRenderer from '../../util/GrowiRenderer';
 
+import { createSubscribedElement } from '../UnstatedUtils';
+import UserPicture from '../User/UserPicture';
 import Editor from '../PageEditor/Editor';
-import CommentContainer from './CommentContainer';
-import CommentPreview from './CommentPreview';
 import SlackNotification from '../SlackNotification';
+
+import CommentPreview from './CommentPreview';
 
 /**
  *
@@ -29,7 +31,7 @@ class CommentEditor extends React.Component {
   constructor(props) {
     super(props);
 
-    const config = this.props.crowi.getConfig();
+    const config = this.props.appContainer.getConfig();
     const isUploadable = config.upload.image || config.upload.file;
     const isUploadableFile = config.upload.file;
 
@@ -43,11 +45,7 @@ class CommentEditor extends React.Component {
       isUploadableFile,
       errorMessage: undefined,
       hasSlackConfig: config.hasSlackConfig,
-      isSlackEnabled: false,
-      slackChannels: this.props.slackChannels,
     };
-
-    this.growiRenderer = new GrowiRenderer(this.props.crowi, this.props.crowiOriginRenderer, { mode: 'comment' });
 
     this.updateState = this.updateState.bind(this);
     this.updateStateCheckbox = this.updateStateCheckbox.bind(this);
@@ -59,6 +57,7 @@ class CommentEditor extends React.Component {
     this.handleSelect = this.handleSelect.bind(this);
     this.onSlackEnabledFlagChange = this.onSlackEnabledFlagChange.bind(this);
     this.onSlackChannelsChange = this.onSlackChannelsChange.bind(this);
+    this.toggleEditor = this.toggleEditor.bind(this);
   }
 
   componentWillMount() {
@@ -66,7 +65,7 @@ class CommentEditor extends React.Component {
   }
 
   init() {
-    const layoutType = this.props.crowi.getConfig().layoutType;
+    const layoutType = this.props.appContainer.getConfig().layoutType;
     this.setState({ isLayoutTypeGrowi: layoutType === 'crowi-plus' || layoutType === 'growi' });
   }
 
@@ -86,12 +85,16 @@ class CommentEditor extends React.Component {
     this.renderHtml(this.state.comment);
   }
 
-  onSlackEnabledFlagChange(value) {
-    this.setState({ isSlackEnabled: value });
+  onSlackEnabledFlagChange(isSlackEnabled) {
+    this.props.commentContainer.setState({ isSlackEnabled });
   }
 
-  onSlackChannelsChange(value) {
-    this.setState({ slackChannels: value });
+  onSlackChannelsChange(slackChannels) {
+    this.props.commentContainer.setState({ slackChannels });
+  }
+
+  toggleEditor() {
+    this.props.commentButtonClickedHandler(this.props.replyTo);
   }
 
   /**
@@ -102,12 +105,14 @@ class CommentEditor extends React.Component {
       event.preventDefault();
     }
 
+    const { commentContainer } = this.props;
+
     this.props.commentContainer.postComment(
       this.state.comment,
       this.state.isMarkdown,
       this.props.replyTo,
-      this.state.isSlackEnabled,
-      this.state.slackChannels,
+      commentContainer.state.isSlackEnabled,
+      commentContainer.state.slackChannels,
     )
       .then((res) => {
         this.setState({
@@ -116,11 +121,10 @@ class CommentEditor extends React.Component {
           html: '',
           key: 1,
           errorMessage: undefined,
-          isSlackEnabled: false,
         });
         // reset value
         this.editor.setValue('');
-        this.props.commentButtonClickedHandler(this.props.replyTo);
+        this.toggleEditor();
       })
       .catch((err) => {
         const errorMessage = err.message || 'An unknown error occured when posting comment';
@@ -174,8 +178,8 @@ class CommentEditor extends React.Component {
       markdown,
     };
 
-    const growiRenderer = this.growiRenderer;
-    const interceptorManager = this.props.crowi.interceptorManager;
+    const { growiRenderer } = this.props;
+    const interceptorManager = this.props.appContainer.interceptorManager;
     interceptorManager.process('preRenderCommnetPreview', context)
       .then(() => { return interceptorManager.process('prePreProcess', context) })
       .then(() => {
@@ -204,11 +208,11 @@ class CommentEditor extends React.Component {
   }
 
   render() {
-    const crowi = this.props.crowi;
-    const username = crowi.me;
-    const user = crowi.findUser(username);
+    const { appContainer, commentContainer } = this.props;
+    const username = appContainer.me;
+    const user = appContainer.findUser(username);
     const commentPreview = this.state.isMarkdown ? this.getCommentHtml() : null;
-    const emojiStrategy = this.props.crowi.getEmojiStrategy();
+    const emojiStrategy = appContainer.getEmojiStrategy();
 
     const isLayoutTypeGrowi = this.state.isLayoutTypeGrowi;
 
@@ -216,7 +220,7 @@ class CommentEditor extends React.Component {
     const submitButton = (
       <Button
         bsStyle="primary"
-        className="fcbtn btn btn-sm btn-primary btn-outline btn-rounded btn-1b"
+        className="fcbtn btn btn-primary btn-outline btn-rounded btn-1b"
         onClick={this.postHandler}
       >
         Comment
@@ -244,9 +248,8 @@ class CommentEditor extends React.Component {
                       ref={(c) => { this.editor = c }}
                       value={this.state.comment}
                       isGfmMode={this.state.isMarkdown}
-                      editorOptions={this.props.editorOptions}
                       lineNumbers={false}
-                      isMobile={this.props.crowi.isMobile}
+                      isMobile={appContainer.isMobile}
                       isUploadable={this.state.isUploadable && this.state.isLayoutTypeGrowi} // enable only when GROWI layout
                       isUploadableFile={this.state.isUploadableFile}
                       emojiStrategy={emojiStrategy}
@@ -290,14 +293,20 @@ class CommentEditor extends React.Component {
                     && (
                     <div className="form-inline align-self-center mr-md-2">
                       <SlackNotification
-                        isSlackEnabled={this.state.isSlackEnabled}
-                        slackChannels={this.state.slackChannels}
+                        isSlackEnabled={commentContainer.state.isSlackEnabled}
+                        slackChannels={commentContainer.state.slackChannels}
                         onEnabledFlagChange={this.onSlackEnabledFlagChange}
                         onChannelChange={this.onSlackChannelsChange}
                       />
                     </div>
                     )
                   }
+                  <div>
+                    <Button bsStyle="danger" className="fcbtn btn btn-xs btn-danger btn-outline btn-rounded" onClick={this.toggleEditor}>
+                      Cancel
+                    </Button>
+                  </div>
+                  &nbsp;&nbsp;&nbsp;&nbsp;
                   <div className="hidden-xs">{submitButton}</div>
                 </div>
                 <div className="visible-xs mt-2">
@@ -321,35 +330,17 @@ class CommentEditor extends React.Component {
 /**
  * Wrapper component for using unstated
  */
-class CommentEditorWrapper extends React.Component {
-
-  render() {
-    return (
-      <Subscribe to={[CommentContainer]}>
-        { commentContainer => (
-          // eslint-disable-next-line arrow-body-style
-          <CommentEditor commentContainer={commentContainer} {...this.props} />
-        )}
-      </Subscribe>
-    );
-  }
-
-}
+const CommentEditorWrapper = (props) => {
+  return createSubscribedElement(CommentEditor, props, [AppContainer, PageContainer, EditorContainer, CommentContainer]);
+};
 
 CommentEditor.propTypes = {
-  crowi: PropTypes.object.isRequired,
-  crowiOriginRenderer: PropTypes.object.isRequired,
+  appContainer: PropTypes.instanceOf(AppContainer).isRequired,
+  pageContainer: PropTypes.instanceOf(PageContainer).isRequired,
+  editorContainer: PropTypes.instanceOf(EditorContainer).isRequired,
   commentContainer: PropTypes.instanceOf(CommentContainer).isRequired,
-  editorOptions: PropTypes.object,
-  slackChannels: PropTypes.string,
-  replyTo: PropTypes.string,
-  commentButtonClickedHandler: PropTypes.func.isRequired,
-};
-CommentEditorWrapper.propTypes = {
-  crowi: PropTypes.object.isRequired,
-  crowiOriginRenderer: PropTypes.object.isRequired,
-  editorOptions: PropTypes.object,
-  slackChannels: PropTypes.string,
+
+  growiRenderer: PropTypes.instanceOf(GrowiRenderer).isRequired,
   replyTo: PropTypes.string,
   commentButtonClickedHandler: PropTypes.func.isRequired,
 };

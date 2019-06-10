@@ -1,19 +1,20 @@
-/* eslint-disable react/no-multi-comp */
-/* eslint-disable react/no-access-state-in-setstate */
 import React from 'react';
 import PropTypes from 'prop-types';
+
 import Button from 'react-bootstrap/es/Button';
 
-import { Subscribe } from 'unstated';
-
 import { withTranslation } from 'react-i18next';
-import GrowiRenderer from '../util/GrowiRenderer';
 
-import CommentContainer from './PageComment/CommentContainer';
+import AppContainer from '../services/AppContainer';
+import CommentContainer from '../services/CommentContainer';
+
+import { createSubscribedElement } from './UnstatedUtils';
 import CommentEditor from './PageComment/CommentEditor';
 
 import Comment from './PageComment/Comment';
 import DeleteCommentModal from './PageComment/DeleteCommentModal';
+import PageContainer from '../services/PageContainer';
+
 
 /**
  * Load data of comments and render the list of <Comment />
@@ -40,7 +41,7 @@ class PageComments extends React.Component {
       showEditorIds: new Set(),
     };
 
-    this.growiRenderer = new GrowiRenderer(this.props.crowi, this.props.crowiOriginRenderer, { mode: 'comment' });
+    this.growiRenderer = this.props.appContainer.getRenderer('comment');
 
     this.init = this.init.bind(this);
     this.confirmToDeleteComment = this.confirmToDeleteComment.bind(this);
@@ -56,11 +57,11 @@ class PageComments extends React.Component {
   }
 
   init() {
-    if (!this.props.pageId) {
+    if (!this.props.pageContainer.state.pageId) {
       return;
     }
 
-    const layoutType = this.props.crowi.getConfig().layoutType;
+    const layoutType = this.props.appContainer.getConfig().layoutType;
     this.setState({ isLayoutTypeGrowi: layoutType === 'crowi-plus' || layoutType === 'growi' });
 
     this.props.commentContainer.retrieveComments();
@@ -132,8 +133,7 @@ class PageComments extends React.Component {
 
       const commentId = comment._id;
       const showEditor = this.state.showEditorIds.has(commentId);
-      const crowi = this.props.crowi;
-      const username = crowi.me;
+      const username = this.props.appContainer.me;
 
       const replyList = this.addRepliesToComments(comment, replies);
 
@@ -142,11 +142,8 @@ class PageComments extends React.Component {
           <Comment
             comment={comment}
             deleteBtnClicked={this.confirmToDeleteComment}
-            crowiRenderer={this.growiRenderer}
-            crowi={this.props.crowi}
+            growiRenderer={this.growiRenderer}
             replyList={replyList}
-            revisionCreatedAt={this.props.revisionCreatedAt}
-            revisionId={this.props.revisionId}
           />
           <div className="container-fluid">
             <div className="row">
@@ -158,10 +155,10 @@ class PageComments extends React.Component {
                       <div className="col-xs-offset-6 col-sm-offset-6 col-md-offset-6 col-lg-offset-6">
                         <Button
                           bsStyle="primary"
-                          className="fcbtn btn btn-sm btn-primary btn-outline btn-rounded btn-1b"
+                          className="fcbtn btn btn-outline btn-rounded btn-xxs"
                           onClick={() => { return this.replyButtonClickedHandler(commentId) }}
                         >
-                          <i className="icon-bubble"></i> Reply
+                          Reply <i className="fa fa-mail-reply"></i>
                         </Button>
                       </div>
                     )
@@ -170,10 +167,7 @@ class PageComments extends React.Component {
                 )}
                 { showEditor && (
                   <CommentEditor
-                    crowi={this.props.crowi}
-                    crowiOriginRenderer={this.props.crowiOriginRenderer}
-                    editorOptions={this.props.editorOptions}
-                    slackChannels={this.props.slackChannels}
+                    growiRenderer={this.growiRenderer}
                     replyTo={commentId}
                     commentButtonClickedHandler={this.commentButtonClickedHandler}
                   />
@@ -241,42 +235,14 @@ class PageComments extends React.Component {
 /**
  * Wrapper component for using unstated
  */
-class PageCommentsWrapper extends React.Component {
-
-  render() {
-    return (
-      <Subscribe to={[CommentContainer]}>
-        { commentContainer => (
-          // eslint-disable-next-line arrow-body-style
-          <PageComments commentContainer={commentContainer} {...this.props} />
-        )}
-      </Subscribe>
-    );
-  }
-
-}
-
-PageCommentsWrapper.propTypes = {
-  crowi: PropTypes.object.isRequired,
-  crowiOriginRenderer: PropTypes.object.isRequired,
-  pageId: PropTypes.string.isRequired,
-  revisionId: PropTypes.string.isRequired,
-  revisionCreatedAt: PropTypes.number,
-  pagePath: PropTypes.string,
-  editorOptions: PropTypes.object,
-  slackChannels: PropTypes.string,
+const PageCommentsWrapper = (props) => {
+  return createSubscribedElement(PageComments, props, [AppContainer, PageContainer, CommentContainer]);
 };
+
 PageComments.propTypes = {
-  commentContainer: PropTypes.object.isRequired,
-
-  crowi: PropTypes.object.isRequired,
-  crowiOriginRenderer: PropTypes.object.isRequired,
-  pageId: PropTypes.string.isRequired,
-  revisionId: PropTypes.string.isRequired,
-  revisionCreatedAt: PropTypes.number,
-  pagePath: PropTypes.string,
-  editorOptions: PropTypes.object,
-  slackChannels: PropTypes.string,
+  appContainer: PropTypes.instanceOf(AppContainer).isRequired,
+  pageContainer: PropTypes.instanceOf(PageContainer).isRequired,
+  commentContainer: PropTypes.instanceOf(CommentContainer).isRequired,
 };
 
-export default withTranslation(null, { withRef: true })(PageCommentsWrapper);
+export default withTranslation()(PageCommentsWrapper);
