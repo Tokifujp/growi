@@ -807,12 +807,9 @@ module.exports = function(crowi) {
   async function addConditionToFilteringByViewerForList(builder, user, showAnyoneKnowsLink) {
     validateCrowi();
 
-    const Config = crowi.model('Config');
-    const config = crowi.getConfig();
-
     // determine User condition
-    const hidePagesRestrictedByOwner = Config.hidePagesRestrictedByOwnerInList(config);
-    const hidePagesRestrictedByGroup = Config.hidePagesRestrictedByGroupInList(config);
+    const hidePagesRestrictedByOwner = crowi.configManager.getConfig('crowi', 'security:list-policy:hideRestrictedByOwner');
+    const hidePagesRestrictedByGroup = crowi.configManager.getConfig('crowi', 'security:list-policy:hidePagesRestrictedByGroupInList');
 
     // determine UserGroup condition
     let userGroups = null;
@@ -998,9 +995,8 @@ module.exports = function(crowi) {
     let savedPage = await page.save();
     const newRevision = Revision.prepareRevision(savedPage, body, null, user, { format });
     const revision = await pushRevision(savedPage, newRevision, user);
-    savedPage = await this.findByPath(revision.path)
-      .populate('revision')
-      .populate('creator');
+    savedPage = await this.findByPath(revision.path);
+    await savedPage.populateDataToShowRevision();
 
     if (socketClientId != null) {
       pageEvent.emit('create', savedPage, user, socketClientId);
@@ -1024,9 +1020,8 @@ module.exports = function(crowi) {
     let savedPage = await pageData.save();
     const newRevision = await Revision.prepareRevision(pageData, body, previousBody, user);
     const revision = await pushRevision(savedPage, newRevision, user);
-    savedPage = await this.findByPath(revision.path)
-      .populate('revision')
-      .populate('creator');
+    savedPage = await this.findByPath(revision.path);
+    await savedPage.populateDataToShowRevision();
 
     if (isSyncRevisionToHackmd) {
       savedPage = await this.syncRevisionToHackmd(savedPage);
@@ -1231,7 +1226,8 @@ module.exports = function(crowi) {
     const Page = this;
     const Revision = crowi.model('Revision');
     const path = pageData.path;
-    const createRedirectPage = options.createRedirectPage || 0;
+    const createRedirectPage = options.createRedirectPage || false;
+    const updateMetadata = options.updateMetadata || false;
     const socketClientId = options.socketClientId || null;
 
     // sanitize path
@@ -1239,8 +1235,10 @@ module.exports = function(crowi) {
 
     // update Page
     pageData.path = newPagePath;
-    pageData.lastUpdateUser = user;
-    pageData.updatedAt = Date.now();
+    if (updateMetadata) {
+      pageData.lastUpdateUser = user;
+      pageData.updatedAt = Date.now();
+    }
     const updatedPageData = await pageData.save();
 
     // update Rivisions

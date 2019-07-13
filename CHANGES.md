@@ -1,26 +1,70 @@
 # CHANGES
 
-## 3.5.0-RC
+## 3.5.3-RC
+
+* Improvement: Calculate string width when save with Spreadsheet like GUI (Handsontable)
+* Fix: Search Result Page doesn't work
+* Fix: Create/Update page API returns data includes author's password hash
+* Fix: Dropdown to copy page path/URL/MarkdownLink shows under CodeMirror vscrollbar
+* Fix: Link to /trash in Dropdown menu
+
+## 3.5.2
+
+* Feature: Remain metadata option when Move/Rename page
+* Improvement: Support code highlight for Swift and Kotlin
+* Fix: Couldn't restrict page with user group permission
+* Fix: Couldn't duplicate a page when it restricted by a user group permission
+* Fix: Consider timezone on admin page
+* Fix: Editor doesn't work on Microsoft Edge
+* Support: Upgrade libs
+    * growi-commons
+
+## 3.5.1
 
 ### BREAKING CHANGES
 
-* GROWI no longer supports [Crowi Template syntax](https://medium.com/crowi-book/crowi-v1-5-0-5a62e7c6be90)
+* GROWI no longer supports
+    * Protection system with Basic Authentication
+    * Crowi Classic Authentication Mechanism
+    * [Crowi Template syntax](https://medium.com/crowi-book/crowi-v1-5-0-5a62e7c6be90)
+* GROWI no lonnger supports plugins with schema version 2
+    * Upgrade [weseek/growi-plugin-lsx](https://github.com/weseek/growi-plugin-lsx) to v3.0.0 or above
+    * Upgrade [weseek/growi-plugin-pukiwiki-like-linker
+](https://github.com/weseek/growi-plugin-pukiwiki-like-linker
+) to v3.0.0 or above
+* The restriction mode of the root page (`/`) will be set 'Public'
+* The restriction mode of the root page (`/`) can not be changed after v 3.5.1
+
+Upgrading Guide: https://docs.growi.org/guide/upgrading/35x.html
 
 ### Updates
 
 * Feature: Comment Thread
 * Feature: OpenID Connect authentication
+* Feature: HTTP Basic authentication
 * Feature: Staff Credits with [Konami Code](https://en.wikipedia.org/wiki/Konami_Code)
+* Feature: Restricte Complete Deletion of Pages
 * Improvement Draft list
 * Fix: Deleting page completely
 * Fix: Search with `prefix:` param with CJK pathname
+* Fix: Could not edit UserGroup even if `PUBLIC_WIKI_ONLY` is not set
 * I18n: User Management Details
 * I18n: Group Management Details
 * Support: Apply unstated
+* Support: Use Babel 7
+* Support: Support plugins with schema version 3
+* Support: Abolish Old Config API
+* Support: Apply Jest for Tests
 * Support: Upgrade libs
     * async
     * axios
     * connect-mongo
+    * css-loader
+    * eslint
+    * eslint-config-weseek
+    * eslint-plugin-import
+    * eslint-plugin-jest
+    * eslint-plugin-react
     * file-loader
     * googleapis
     * i18next
@@ -30,6 +74,8 @@
     * mongoose-gridfs
     * mongoose-unique-validator
     * null-loader
+
+## 3.5.0 (Missing number)
 
 ## 3.4.7
 

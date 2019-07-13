@@ -1,6 +1,6 @@
 {% extends '../layout-growi/base/layout.html' %}
 
-{% block html_title %}{{ customTitle(t('user_management.external_account')) }}{% endblock %}
+{% block html_title %}{{ customizeService.generateCustomTitle(t('user_management.external_account')) }}{% endblock %}
 
 {% block content_header %}
 <div class="header-wrap">
@@ -86,7 +86,7 @@
             <td>
               <strong>{{ account.accountId }}</strong>
             </td>
-            <td>{{ account.createdAt|date('Y-m-d', account.createdAt.getTimezoneOffset()) }}</td>
+            <td>{{ account.createdAt|datetz('Y-m-d') }}</td>
             <td class="text-center">
               <button class="btn btn-default btn-sm btn-danger"
                   data-toggle="modal" data-target="#diassociate-external-account" data-provider-type="{{ account.providerType }}" data-account-id="{{ account.accountId }}">

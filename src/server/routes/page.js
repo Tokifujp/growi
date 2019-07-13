@@ -2,18 +2,21 @@
 module.exports = function(crowi, app) {
   const debug = require('debug')('growi:routes:page');
   const logger = require('@alias/logger')('growi:routes:page');
+  const swig = require('swig-templates');
+
   const pathUtils = require('growi-commons').pathUtils;
+
   const Page = crowi.model('Page');
   const User = crowi.model('User');
-  const Config = crowi.model('Config');
-  const config = crowi.getConfig();
   const Bookmark = crowi.model('Bookmark');
   const PageTagRelation = crowi.model('PageTagRelation');
   const UpdatePost = crowi.model('UpdatePost');
+
   const ApiResponse = require('../util/apiResponse');
-  const interceptorManager = crowi.getInterceptorManager();
-  const swig = require('swig-templates');
   const getToday = require('../util/getToday');
+
+  const { configManager, slackNotificationService } = crowi;
+  const interceptorManager = crowi.getInterceptorManager();
   const globalNotificationService = crowi.getGlobalNotificationService();
 
   const actions = {};
@@ -44,6 +47,14 @@ module.exports = function(crowi, app) {
     if (page.revisionHackmdSynced != null && page.revisionHackmdSynced._id != null) {
       returnObj.revisionHackmdSynced = page.revisionHackmdSynced._id;
     }
+
+    if (page.lastUpdateUser != null && page.lastUpdateUser instanceof User) {
+      returnObj.lastUpdateUser = page.lastUpdateUser.toObject();
+    }
+    if (page.creator != null && page.creator instanceof User) {
+      returnObj.creator = page.creator.toObject();
+    }
+
     return returnObj;
   }
 
@@ -94,7 +105,7 @@ module.exports = function(crowi, app) {
         logger.error('Error occured in updating slack channels: ', err);
       });
 
-    if (Config.hasSlackConfig(config)) {
+    if (slackNotificationService.hasSlackConfig()) {
       const promises = slackChannels.split(',').map((chan) => {
         return crowi.slack.postPage(page, user, chan, updateOrCreate, previousRevision);
       });
@@ -303,9 +314,9 @@ module.exports = function(crowi, app) {
    */
   /* eslint-disable no-else-return */
   actions.showPageWithEndOfSlash = function(req, res, next) {
-    const behaviorType = Config.behaviorType(config);
+    const behaviorType = configManager.getConfig('crowi', 'customize:behavior');
 
-    if (!behaviorType || behaviorType === 'crowi') {
+    if (behaviorType === 'crowi') {
       return showPageListForCrowiBehavior(req, res, next);
     }
     else {
@@ -327,10 +338,10 @@ module.exports = function(crowi, app) {
       return showPageForPresentation(req, res, next);
     }
 
-    const behaviorType = Config.behaviorType(config);
+    const behaviorType = configManager.getConfig('crowi', 'customize:behavior');
 
     // check whether this page has portal page
-    if (!behaviorType || behaviorType === 'crowi') {
+    if (behaviorType === 'crowi') {
       const portalPagePath = pathUtils.addTrailingSlash(getPathFromRequest(req));
       const hasPortalPage = await Page.count({ path: portalPagePath }) > 0;
 
@@ -349,9 +360,9 @@ module.exports = function(crowi, app) {
    */
   /* eslint-disable no-else-return */
   actions.trashPageListShowWrapper = function(req, res) {
-    const behaviorType = Config.behaviorType(config);
+    const behaviorType = configManager.getConfig('crowi', 'customize:behavior');
 
-    if (!behaviorType || behaviorType === 'crowi') {
+    if (behaviorType === 'crowi') {
       // Crowi behavior for '/trash/*'
       return actions.deletedPageListShow(req, res);
     }
@@ -367,9 +378,9 @@ module.exports = function(crowi, app) {
    */
   /* eslint-disable no-else-return */
   actions.trashPageShowWrapper = function(req, res) {
-    const behaviorType = Config.behaviorType(config);
+    const behaviorType = configManager.getConfig('crowi', 'customize:behavior');
 
-    if (!behaviorType || behaviorType === 'crowi') {
+    if (behaviorType === 'crowi') {
       // redirect to '/trash/'
       return res.redirect('/trash/');
     }
@@ -385,9 +396,9 @@ module.exports = function(crowi, app) {
    */
   /* eslint-disable no-else-return */
   actions.deletedPageListShowWrapper = function(req, res) {
-    const behaviorType = Config.behaviorType(config);
+    const behaviorType = configManager.getConfig('crowi', 'customize:behavior');
 
-    if (!behaviorType || behaviorType === 'crowi') {
+    if (behaviorType === 'crowi') {
       // Crowi behavior for '/trash/*'
       return actions.deletedPageListShow(req, res);
     }
@@ -582,8 +593,6 @@ module.exports = function(crowi, app) {
     }
 
     const result = { page: serializeToObj(createdPage), tags: savedTags };
-    result.page.lastUpdateUser = User.filterToPublicFields(createdPage.lastUpdateUser);
-    result.page.creator = User.filterToPublicFields(createdPage.creator);
     res.json(ApiResponse.success(result));
 
     // update scopes for descendants
@@ -671,7 +680,6 @@ module.exports = function(crowi, app) {
     }
 
     const result = { page: serializeToObj(page), tags: savedTags };
-    result.page.lastUpdateUser = User.filterToPublicFields(page.lastUpdateUser);
     res.json(ApiResponse.success(result));
 
     // update scopes for descendants
@@ -951,6 +959,9 @@ module.exports = function(crowi, app) {
 
     try {
       if (isCompletely) {
+        if (!req.user.canDeleteCompletely(page.creator)) {
+          return res.json(ApiResponse.error('You can not delete completely', 'user_not_admin'));
+        }
         if (isRecursively) {
           page = await Page.completelyDeletePageRecursively(page, req.user, options);
         }
@@ -1041,11 +1052,11 @@ module.exports = function(crowi, app) {
     const previousRevision = req.body.revision_id || null;
     const newPagePath = pathUtils.normalizePath(req.body.new_path);
     const options = {
-      createRedirectPage: req.body.create_redirect || 0,
-      moveUnderTrees: req.body.move_trees || 0,
+      createRedirectPage: (req.body.create_redirect != null),
+      updateMetadata: (req.body.remain_metadata == null),
       socketClientId: +req.body.socketClientId || undefined,
     };
-    const isRecursively = req.body.recursively || 0;
+    const isRecursively = (req.body.recursively != null);
 
     if (!Page.isCreatableName(newPagePath)) {
       return res.json(ApiResponse.error(`Could not use the path '${newPagePath})'`, 'invalid_path'));
@@ -1118,7 +1129,7 @@ module.exports = function(crowi, app) {
     req.body.body = page.revision.body;
     req.body.grant = page.grant;
     req.body.grantedUsers = page.grantedUsers;
-    req.body.grantedGroup = page.grantedGroup;
+    req.body.grantUserGroupId = page.grantedGroup;
     req.body.pageTags = originTags;
 
     return api.create(req, res);

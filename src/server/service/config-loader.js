@@ -1,9 +1,11 @@
 const debug = require('debug')('growi:service:ConfigLoader');
 
+const { envUtils } = require('growi-commons');
+
 const TYPES = {
   NUMBER:  { parse: (v) => { return parseInt(v, 10) } },
   STRING:  { parse: (v) => { return v } },
-  BOOLEAN: { parse: (v) => { return /^(true|1)$/i.test(v) } },
+  BOOLEAN: { parse: (v) => { return envUtils.toBoolean(v) } },
 };
 
 /**
@@ -134,6 +136,12 @@ const ENV_VAR_NAME_TO_CONFIG_INFO = {
     type:    TYPES.NUMBER,
     default: Infinity,
   },
+  FORCE_WIKI_MODE: {
+    ns:      'crowi',
+    key:     'security:wikiMode',
+    type:    TYPES.STRING,
+    default: undefined,
+  },
   SAML_USES_ONLY_ENV_VARS_FOR_SOME_OPTIONS: {
     ns:      'crowi',
     key:     'security:passport-saml:useOnlyEnvVarsForSomeOptions',
@@ -218,7 +226,7 @@ class ConfigLoader {
     // merge defaults
     let mergedConfigFromDB = Object.assign({ crowi: this.configModel.getDefaultCrowiConfigsObject() }, configFromDB);
     mergedConfigFromDB = Object.assign({ markdown: this.configModel.getDefaultMarkdownConfigsObject() }, mergedConfigFromDB);
-
+    mergedConfigFromDB = Object.assign({ notification: this.configModel.getDefaultNotificationConfigsObject() }, mergedConfigFromDB);
 
     // In getConfig API, only null is used as a value to indicate that a config is not set.
     // So, if a value loaded from the database is emtpy,
